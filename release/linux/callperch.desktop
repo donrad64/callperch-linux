@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CallPerch
+Comment=Amateur radio callsign research using FCC data
+Exec=/opt/callperch/CallPerch
+Icon=callperch
+Categories=Utility;HamRadio;
+Terminal=false
+StartupNotify=true

@@ -1,0 +1,8 @@
+[Unit]
+Description=CallPerch one-day FCC availability reminders
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/callperch/CallPerch --reminders
+TimeoutStartSec=10min

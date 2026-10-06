@@ -1,0 +1,9 @@
+[Unit]
+Description=Check CallPerch watchlist after 9 AM
+
+[Timer]
+OnCalendar=*-*-* 09..23:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

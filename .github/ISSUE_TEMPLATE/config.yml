@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Application support
+    url: https://github.com/donrad64/callperch-support/issues/new/choose
+    about: Help with installation and ordinary app issues.
+  - name: Private security or privacy report
+    url: mailto:hamradio.balancing125@simplelogin.com
+    about: Send sensitive reports privately; do not post personal records or credentials.

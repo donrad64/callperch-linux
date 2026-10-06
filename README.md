@@ -1,2 +1,68 @@
-# callperch-linux
-MIT-licensed Linux desktop app for researching public FCC amateur-radio licenses, callsign assignment history, and estimated availability.
+# CallPerch for Linux
+
+[![CI](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+A Qt desktop application for researching public FCC amateur-radio licenses, applications, callsign assignments, and estimated availability. Created by Arash Manafirad (KR4GOJ). This repository contains the Linux application and its shared Python FCC engine. The initial source release corresponds to Linux 1.2.3.
+
+[Download installers](https://github.com/donrad64/callperch-support/releases/latest) · [Support](https://donrad64.github.io/callperch/) · [Privacy](https://donrad64.github.io/callperch/privacy.html)
+
+## Features
+
+- Search licensees and callsigns; inspect license/application history.
+- Explore estimated availability, region/format filters, and CW/phonetic weights.
+- Maintain a watchlist and local estimated-date reminders.
+- Sync FCC weekly archives or import ZIPs, with a modal progress window and cancellation.
+- Inspect exact public mailing-address matches; full addresses are hidden by default.
+- Expand FRN-linked assignment timelines, with smaller orange release-estimate notes.
+- Choose System, Light, or Dark appearance.
+
+Assignment-history summaries describe patterns in the available public records. They do not establish intent, improper conduct, rule violations, former-holder eligibility, entitlement to a callsign, or an application outcome. Missing records, changed FRNs, and weekly snapshot timing affect results. Estimated availability is not an FCC decision. Verify relevant records directly with the FCC. CallPerch is independent and is not affiliated with the FCC.
+
+## Install
+
+For Ubuntu 24.04+, download the `.deb` matching your architecture (amd64 for Intel/AMD or arm64 for ARM) from [Linux releases](https://github.com/donrad64/callperch-support/releases/latest). Close CallPerch, then install it, for example:
+
+```sh
+sudo apt install ./CallPerch-1.2.3-amd64.deb
+callperch
+```
+
+Portable archives are also available. Keep the executable and `_internal` directory together. Verify downloads against the release's `SHA256SUMS.txt`.
+
+## Run from source
+
+Python 3.10+ and a graphical Linux desktop are required. Ubuntu 24.04 is the build baseline. On Debian/Ubuntu:
+
+```sh
+sudo apt install python3-venv curl libnotify-bin xdg-utils libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+git clone https://github.com/donrad64/callperch-linux.git
+cd callperch-linux
+python3 -m venv .venv
+.venv/bin/python -m pip install -r linux/requirements.txt
+.venv/bin/python linux/callperch.py
+```
+
+Choose **Sync FCC** or import both `l_amat.zip` and `a_amat.zip`. No FCC data is included in the repository or Linux packages. Downloads are large; imports need at least 12 GiB free and can take several minutes. A failed or canceled import preserves the previous snapshot.
+
+Both installed and source versions use `$XDG_DATA_HOME/callperch`, defaulting to `~/.local/share/callperch`. They share the database and settings. Close other instances before syncing. Older snapshots need Sync FCC for assignment-history identity fields.
+
+## Test and build
+
+```sh
+.venv/bin/python -m unittest discover -s tests -v
+QT_QPA_PLATFORM=offscreen .venv/bin/python linux/test_ui.py -v
+APP_VERSION=1.2.3 ./scripts/build-linux.sh
+```
+
+Native packaging must run on Linux. The build produces a portable archive, checksum, and a `.deb` when `dpkg-deb` is available. Python and Qt are bundled. [Build and reminder instructions](docs/BUILDING.md) explain dependencies, packaging, and optional systemd reminders.
+
+CI tests pull requests and pushes with synthetic records. A manual workflow builds on Ubuntu x86-64 and ARM64, with read-only repository permissions; it uploads artifacts and does not publish releases automatically. Offscreen checks do not replace desktop testing.
+
+## Privacy, contributions, and licensing
+
+Searches, watchlists, preferences, and derived assignment summaries remain local. Sync connects to FCC servers. External links open the browser. There are no developer-operated accounts, analytics, advertising, or telemetry. See the [bundled privacy policy](docs/privacy.html).
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for development and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Use synthetic data in tests and issue reports.
+
+CallPerch Linux code is released under the [MIT license](LICENSE). Dependencies retain their own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md). Public FCC data is not included or licensed by this repository. Other CallPerch implementations and unpublished development history are outside this source release.
