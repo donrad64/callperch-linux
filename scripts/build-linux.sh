@@ -46,25 +46,6 @@ GUI_STATUS=$?
 set -e
 if [ "$GUI_STATUS" != 124 ]; then cat ".build/linux-gui-$ARCH.log" >&2; echo "Frozen GUI smoke test failed ($GUI_STATUS)" >&2; exit 1; fi
 tar -C "dist/linux/$ARCH" -czf "dist/linux/CallPerch-$VERSION-linux-$ARCH.tar.gz" CallPerch
-if command -v dpkg-deb >/dev/null; then
-    STAGING=".build/deb-$ARCH"
-    mkdir -p "$STAGING/DEBIAN" "$STAGING/opt/callperch" "$STAGING/usr/share/applications" "$STAGING/usr/share/icons/hicolor/256x256/apps" "$STAGING/usr/bin"
-    cp -R "$BUNDLE/." "$STAGING/opt/callperch/"
-    cp release/linux/callperch.desktop "$STAGING/usr/share/applications/"
-    cp assets/branding/callperch-logo.png "$STAGING/usr/share/icons/hicolor/256x256/apps/callperch.png"
-    ln -sfn /opt/callperch/CallPerch "$STAGING/usr/bin/callperch"
-    cat > "$STAGING/DEBIAN/control" <<CONTROL
-Package: callperch
-Version: $VERSION
-Architecture: $DEB_ARCH
-Maintainer: Arash Manafirad (KR4GOJ)
-Depends: curl, libnotify-bin, xdg-utils, libegl1, libopengl0, libxkbcommon0, libxkbcommon-x11-0, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0
-Section: hamradio
-Priority: optional
-Description: FCC amateur radio callsign research
- Search callsigns, inspect applications, compare weights, and track estimated availability.
-CONTROL
-    dpkg-deb --root-owner-group --build "$STAGING" "dist/linux/CallPerch-$VERSION-$DEB_ARCH.deb"
-fi
 (cd dist/linux && sha256sum "CallPerch-$VERSION-linux-$ARCH.tar.gz" > "CallPerch-$VERSION-linux-$ARCH.tar.gz.sha256")
-printf 'Prepared Linux %s packages. Test on a real desktop before publishing.\n' "$ARCH"
+
+printf 'Now build Linux %s packages (tar.gz, .deb if supported, AppImage).\n' "$ARCH"
