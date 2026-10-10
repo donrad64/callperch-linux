@@ -3,7 +3,7 @@
 import argparse, calendar, datetime as dt, json, os, re, sqlite3, sys, tempfile, zipfile, shutil, signal
 from pathlib import Path
 from functools import lru_cache
-DEFAULT = Path(os.environ.get('CALLPERCH_DB', str(Path.home() / 'Library/Application Support/CallPerch/fcc.sqlite' if sys.platform=='darwin' else Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share'))) / 'callperch/fcc.sqlite')))
+DEFAULT = Path(os.environ.get('CALLPERCH_DB', str(Path.home() / 'Library/Application Support/CallPerch/fcc.sqlite' if sys.platform=='darwin' else Path(os.environ.get('LOCALAPPDATA',str(Path.home()/'AppData/Local'))) / 'CallPerch/fcc.sqlite' if sys.platform=='win32' else Path(os.environ.get('XDG_DATA_HOME',str(Path.home()/'.local/share'))) / 'callperch/fcc.sqlite')))
 PENDING = ('1','2','R')  # Pending, pending/returned, returned; retain FCC codes in details.
 
 def iso(value):
@@ -160,6 +160,23 @@ def import_switch_identity(c, z, kind):
     c.executemany('INSERT OR REPLACE INTO amateur_changes VALUES(?,?,?,?,?)',
         ((kind,r[1],r[14].strip(),r[15].strip().upper(),r[9].strip()) for r in records(z,'AM') if len(r)>15))
 
+def previous_callsigns(c, selected):
+    result=dict(state='needs_sync',matches=[],unresolved=[])
+    tables={r[0] for r in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if not {'holder_identity','amateur_changes'} <= tables: return result
+    if not selected: return dict(result,state='unknown')
+    identity=c.execute("SELECT frn,applicant_type FROM holder_identity WHERE kind='L' AND id=?",(selected['id'],)).fetchone()
+    change=c.execute("SELECT previous_call FROM amateur_changes WHERE kind='L' AND id=?",(selected['id'],)).fetchone()
+    previous=change['previous_call'] if change else ''
+    valid=identity and identity['frn'] not in ('','0000000000') and identity['applicant_type']=='I'
+    matches=[]
+    if valid:
+        matches=[dict(r) for r in c.execute(SELECT+""" JOIN holder_identity i ON i.kind='L' AND i.id=l.id
+            WHERE i.frn=? AND i.applicant_type='I' AND l.call<>? AND l.grant_date<>'' AND l.grant_date<=?
+            ORDER BY l.grant_date DESC,l.id DESC LIMIT 200""",(identity['frn'],selected['call'],selected['grant_date']))]
+    unresolved=[previous] if previous and previous!=selected['call'] and not any(r['call']==previous for r in matches) else []
+    return dict(state='ready' if valid or previous else 'identity_unavailable',matches=matches,unresolved=unresolved)
+
 def repeated_switching(c, call):
     if not c.execute("SELECT 1 FROM sqlite_master WHERE name='holder_identity' AND type='table'").fetchone():
         return dict(state='needs_sync',holders=[])
@@ -268,24 +285,28 @@ def connect(db):
     if not Path(db).exists(): raise ValueError('No FCC database yet. Use Sync FCC or import both FCC archives.')
     # Percent-encode the path without importing Python's networking stack.
     safe=b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/'
-    uri='file:'+''.join(chr(byte) if byte in safe else '%'+format(byte,'02X') for byte in os.fsencode(Path(db).resolve()))+'?mode=ro'
+    uri='file:'+''.join(chr(byte) if byte in safe else '%'+format(byte,'02X') for byte in str(Path(db).resolve()).replace('\\','/').encode('utf-8'))+'?mode=ro'
     c=sqlite3.connect(uri,uri=True); c.row_factory=sqlite3.Row; c.execute('PRAGMA query_only=ON'); c.execute('PRAGMA case_sensitive_like=ON'); return c
 
 COUNT = "coalesce((SELECT applicants FROM counts n WHERE n.call=l.call),0)"
 SELECT = f'''SELECT l.*,coalesce(e.name,'') name,coalesce(e.city,'') city,coalesce(e.state,'') state,
-coalesce(m.class,'') operator_class,{COUNT} applicants FROM licenses l
+coalesce(m.class,'') operator_class,{COUNT} applicants,
+(l.status IN ('A','E','C') AND l.estimate<>'' AND l.estimate<=date('now','localtime')
+ AND l.id=(SELECT x.id FROM licenses x WHERE x.call=l.call ORDER BY x.grant_date DESC,x.id DESC LIMIT 1)
+ AND NOT EXISTS (SELECT 1 FROM licenses x WHERE x.call=l.call AND x.status='A' AND x.expires>=date('now','localtime'))) available
+FROM licenses l
 LEFT JOIN entities e ON e.kind='L' AND e.id=l.id LEFT JOIN amateurs m ON m.kind='L' AND m.id=l.id'''
 
-def query(db, mode, term='', region=-1, form='All', horizon=180, sort='date', direction='asc'):
+def query(db, mode, term='', region=-1, form='All', horizon=180, sort='date', direction='asc', license_id=''):
     if sort not in ('date','cw') or direction not in ('asc','desc'): raise ValueError('Invalid sort option')
     c=connect(db)
     if 'cw' not in {r[1] for r in c.execute('PRAGMA table_info(licenses)')}:
         c.close(); raise ValueError('Snapshot needs a fresh FCC sync (schema 2 required)')
     try:
-        return query_connection(c,mode,term,region,form,horizon,sort,direction)
+        return query_connection(c,mode,term,region,form,horizon,sort,direction,license_id)
     finally: c.close()
 
-def query_connection(c,mode,term,region,form,horizon,sort,direction):
+def query_connection(c,mode,term,region,form,horizon,sort,direction,license_id=""):
     if mode=='stats':
         return dict(synced=c.execute("SELECT value FROM metadata WHERE key='synced'").fetchone()[0],
             licenses=c.execute('SELECT count(*) FROM licenses').fetchone()[0],
@@ -305,12 +326,18 @@ def query_connection(c,mode,term,region,form,horizon,sort,direction):
     if mode=='detail':
         call=term.upper().strip()
         licenses=[dict(r) for r in c.execute(SELECT+' WHERE l.call=? ORDER BY l.grant_date DESC,l.id DESC LIMIT 200',(call,))]
-        apps=[dict(r) for r in c.execute('''SELECT a.*,v.rank,coalesce(e.name,'') name FROM choices v
+        if license_id:
+            selected_row=c.execute(SELECT+' WHERE l.call=? AND l.id=?',(call,license_id)).fetchone()
+            selected=dict(selected_row) if selected_row else None
+            if selected is None: raise ValueError('Selected license record is not present for this callsign')
+            licenses=[selected]+[record for record in licenses if record['id']!=license_id]
+        apps=[dict(r) for r in c.execute('''SELECT a.*,min(v.rank) rank,group_concat(DISTINCT v.rank) ranks,coalesce(e.name,'') name FROM choices v
         JOIN applications a ON a.id=v.id LEFT JOIN entities e ON e.kind='A' AND e.id=a.id
-        WHERE v.call=? ORDER BY a.received DESC,a.id LIMIT 200''',(call,))]
+        WHERE v.call=? GROUP BY a.id ORDER BY a.received DESC,a.id LIMIT 200''',(call,))]
         history=[dict(r) for r in c.execute('''SELECT h.* FROM history h WHERE (h.kind='L' AND h.id IN (SELECT id FROM licenses WHERE call=?))
         OR (h.kind='A' AND h.id IN (SELECT id FROM choices WHERE call=?)) ORDER BY h.date DESC LIMIT 200''',(call,call))]
-        return dict(licenses=licenses,applications=apps,history=history,same_address=same_address(c,licenses),switching=repeated_switching(c,call))
+        if license_id: history=[event for event in history if event['kind']!='L' or event['id']==license_id]
+        return dict(licenses=licenses,applications=apps,history=history,same_address=same_address(c,licenses),switching=repeated_switching(c,call),previous_callsigns=previous_callsigns(c,licenses[0] if licenses else None))
     clauses=[]; args=[]
     if mode=='search':
         term=term.strip().upper()
@@ -370,7 +397,7 @@ def main():
     sub.add_parser('migrate-cw')
     imp=sub.add_parser('import'); imp.add_argument('licenses'); imp.add_argument('applications')
     addr=sub.add_parser('import-addresses'); addr.add_argument('archive')
-    q=sub.add_parser('query'); q.add_argument('mode',choices=['stats','search','upcoming','available','contested','detail','watchdates']); q.add_argument('--term',default=''); q.add_argument('--region',type=int,default=-1); q.add_argument('--format',default='All'); q.add_argument('--horizon',type=int,default=180); q.add_argument('--sort',choices=['date','cw'],default='date'); q.add_argument('--direction',choices=['asc','desc'],default='asc')
+    q=sub.add_parser('query'); q.add_argument('mode',choices=['stats','search','upcoming','available','contested','detail','watchdates']); q.add_argument('--license-id',default=''); q.add_argument('--term',default=''); q.add_argument('--region',type=int,default=-1); q.add_argument('--format',default='All'); q.add_argument('--horizon',type=int,default=180); q.add_argument('--sort',choices=['date','cw'],default='date'); q.add_argument('--direction',choices=['asc','desc'],default='asc')
     a=p.parse_args()
     try:
         if a.command=='migrate-cw': migrate_cw(a.db); result={'ok':True}
@@ -380,7 +407,7 @@ def main():
             query_db = a.db
             bundled = Path(__file__).with_name('fcc.sqlite')
             if (a.bundled_fallback or query_db == str(DEFAULT)) and not Path(query_db).exists() and bundled.exists(): query_db = str(bundled)
-            result=query(query_db,a.mode,a.term,a.region,a.format,a.horizon,a.sort,a.direction)
+            result=query(query_db,a.mode,a.term,a.region,a.format,a.horizon,a.sort,a.direction,a.license_id)
         print(json.dumps(result))
     except KeyboardInterrupt:
         print(json.dumps({"error":"FCC operation canceled; previous snapshot preserved"})); sys.exit(1)

@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ "$(uname -s)" != Linux ]; then echo 'Native Linux packages must be built on Linux (use the release-candidates GitHub workflow).' >&2; exit 1; fi
 case "$(uname -m)" in x86_64) ARCH=x86_64; DEB_ARCH=amd64;; aarch64|arm64) ARCH=aarch64; DEB_ARCH=arm64;; *) echo 'Supported Linux architectures: x86_64 and aarch64' >&2; exit 1;; esac
-VERSION=${APP_VERSION:-1.2.3}
+VERSION=${APP_VERSION:-1.3.0}
 export PYINSTALLER_CONFIG_DIR="$PWD/.build/pyinstaller-cache-$ARCH"
 python3 -m venv .build/linux-venv
 .build/linux-venv/bin/python -m pip install -r linux/requirements-build.txt
@@ -14,6 +14,7 @@ mkdir -p "$BUNDLE/licenses" "$BUNDLE/systemd"
 cp release/linux/callperch-reminders.service release/linux/callperch-reminders.timer "$BUNDLE/systemd/"
 cp README.md "$BUNDLE/README.md"
 cp LICENSE "$BUNDLE/licenses/CallPerch-MIT-LICENSE.txt"
+cp release/linux/VOICE-QUALITY.md "$BUNDLE/VOICE-QUALITY.md"
 cp release/linux/THIRD-PARTY-NOTICES.md "$BUNDLE/licenses/THIRD-PARTY-NOTICES.md"
 cp release/linux/Python-LICENSE.txt "$BUNDLE/licenses/Python-LICENSE.txt"
 .build/linux-venv/bin/python - "$BUNDLE/licenses" <<'PYNOTICES'
@@ -39,6 +40,7 @@ for distribution in ['PySide6-Essentials','shiboken6','pyinstaller']:
 PY
 # The portable folder uses shared Qt libraries, which remain replaceable by users.
 QT_QPA_PLATFORM=offscreen "$BUNDLE/CallPerch" --engine --help > /dev/null
+QT_QPA_PLATFORM=offscreen timeout 20 "$BUNDLE/CallPerch" --smoke-test > ".build/linux-comparison-$ARCH.log" 2>&1
 # Check that the collected Qt GUI actually launches; timeout is expected after 10 seconds.
 set +e
 QT_QPA_PLATFORM=offscreen timeout 10 "$BUNDLE/CallPerch" > ".build/linux-gui-$ARCH.log" 2>&1
@@ -48,6 +50,7 @@ if [ "$GUI_STATUS" != 124 ]; then cat ".build/linux-gui-$ARCH.log" >&2; echo "Fr
 tar -C "dist/linux/$ARCH" -czf "dist/linux/CallPerch-$VERSION-linux-$ARCH.tar.gz" CallPerch
 if command -v dpkg-deb >/dev/null; then
     STAGING=".build/deb-$ARCH"
+    rm -rf "$STAGING"
     mkdir -p "$STAGING/DEBIAN" "$STAGING/opt/callperch" "$STAGING/usr/share/applications" "$STAGING/usr/share/icons/hicolor/256x256/apps" "$STAGING/usr/bin"
     cp -R "$BUNDLE/." "$STAGING/opt/callperch/"
     cp release/linux/callperch.desktop "$STAGING/usr/share/applications/"
@@ -58,7 +61,7 @@ Package: callperch
 Version: $VERSION
 Architecture: $DEB_ARCH
 Maintainer: Arash Manafirad (KR4GOJ)
-Depends: curl, libnotify-bin, xdg-utils, libegl1, libopengl0, libxkbcommon0, libxkbcommon-x11-0, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0
+Depends: pulseaudio-utils, espeak-ng, curl, libnotify-bin, xdg-utils, libegl1, libopengl0, libxkbcommon0, libxkbcommon-x11-0, libxcb-cursor0, libxcb-icccm4, libxcb-image0, libxcb-keysyms1, libxcb-render-util0
 Section: hamradio
 Priority: optional
 Description: FCC amateur radio callsign research
