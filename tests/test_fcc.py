@@ -34,7 +34,12 @@ class FCCTests(unittest.TestCase):
         self.assertEqual(fcc.shape('AE7Q'),(7,'2x1'))
         self.assertEqual(fcc.query(self.db,'search','K1AB',region=2),[])
     def test_detail_retains_final_application(self):
-        self.assertEqual(len(fcc.query(self.db,'detail','K1AB')['applications']),4)
+        apps=fcc.query(self.db,'detail','K1AB')['applications']
+        self.assertEqual(len(apps),3)
+        self.assertEqual(len({app['id'] for app in apps}),3)
+        repeated=next(app for app in apps if app['id']=='1')
+        self.assertEqual(sorted(map(int,repeated['ranks'].split(','))),[1,2])
+        self.assertEqual(next(app for app in apps if app['id']=='3')['status'],'G')
     def test_search_treats_wildcards_literally(self): self.assertEqual(fcc.query(self.db,'search','%'),[])
     def test_failed_import_preserves_snapshot(self):
         with zipfile.ZipFile(self.root/'bad.zip','w') as z: z.writestr('HD.dat','HD|broken\n')
@@ -129,6 +134,52 @@ class FCCTests(unittest.TestCase):
         c.execute("UPDATE licenses SET estimate='2099-01-02'")
         c.execute("INSERT INTO licenses(id,call,status,grant_date,expires,region,format,estimate,cancel_date) VALUES('101','K1AB','A','2025-01-01','2095-01-01',1,'1x2','2097-01-02','')"); c.commit(); c.close()
         self.assertEqual(fcc.query(self.db,'watchdates','K1AB'),[])
+    def test_watchlist_detail_orders_newest_assignment_before_history(self):
+        c=self.connection()
+        for identifier, granted in [('102','2010-01-01'),('101','2025-01-01'),('103','2025-01-01')]:
+            c.execute("INSERT INTO licenses(id,call,status,grant_date,expires,region,format,estimate,cancel_date) VALUES(?, 'K1AB','C',?,'2035-01-01',1,'1x2','2037-01-02','')",(identifier,granted))
+        c.commit(); c.close()
+        licenses=fcc.query(self.db,'detail','K1AB')['licenses']
+        self.assertEqual([item['id'] for item in licenses], ['103','101','100','102'])
+
+    def test_selected_holder_and_previous_calls_are_scoped_by_identity(self):
+        c=self.connection()
+        c.execute("INSERT INTO licenses(id,call,status,grant_date,expires,region,format,estimate,cancel_date) VALUES('101','K1AB','A','2025-01-01','2035-01-01',1,'1x2','2037-01-02','')")
+        c.execute("INSERT INTO licenses(id,call,status,grant_date,expires,region,format,estimate,cancel_date) VALUES('102','N1OLD','C','2020-01-01','2030-01-01',1,'1x3','2027-01-02','2025-01-01')")
+        c.executemany("INSERT OR REPLACE INTO holder_identity VALUES('L',?,?,'I')", [('100','1111111111'),('101','2222222222'),('102','2222222222')])
+        c.execute("INSERT OR REPLACE INTO amateur_changes VALUES('L','101','','N1OLD','')")
+        c.commit();c.close()
+        old=fcc.query(self.db,'detail','K1AB',license_id='100')
+        new=fcc.query(self.db,'detail','K1AB',license_id='101')
+        self.assertEqual(old['licenses'][0]['id'],'100')
+        self.assertEqual(old['previous_callsigns']['matches'],[])
+        self.assertEqual(new['licenses'][0]['id'],'101')
+        self.assertEqual(new['previous_callsigns']['matches'][0]['call'],'N1OLD')
+        self.assertEqual(new['previous_callsigns']['matches'][0]['cancel_date'],'2025-01-01')
+        with self.assertRaises(ValueError): fcc.query(self.db,'detail','K1AB',license_id='102')
+    def test_recorded_previous_call_does_not_guess_missing_status(self):
+        c=self.connection()
+        c.execute("INSERT OR REPLACE INTO amateur_changes VALUES('L','100','','N1OLD','')")
+        c.commit();c.close()
+        previous=fcc.query(self.db,'detail','K1AB')['previous_callsigns']
+        self.assertEqual(previous['unresolved'],['N1OLD'])
+        self.assertEqual(previous['matches'],[])
+
+    def test_availability_badge_excludes_later_assignments_and_active_licenses(self):
+        c=self.connection()
+        c.execute("UPDATE licenses SET estimate='2004-01-01'")
+        c.commit()
+        self.assertEqual(fcc.query(self.db,'detail','K1AB')['licenses'][0]['available'],1)
+        c.execute("INSERT INTO licenses(id,call,status,grant_date,expires,region,format,estimate,cancel_date) VALUES('101','K1AB','A','2025-01-01','2099-01-01',1,'1x2','2004-01-01','')")
+        c.commit()
+        self.assertTrue(all(row['available']==0 for row in fcc.query(self.db,'detail','K1AB')['licenses']))
+        c.execute("UPDATE licenses SET status='C',expires='2024-01-01',estimate='2004-01-01' WHERE id='101'")
+        c.commit()
+        rows=fcc.query(self.db,'detail','K1AB')['licenses']
+        self.assertEqual([(row['id'],row['available']) for row in rows],[('101',1),('100',0)])
+        c.execute("UPDATE licenses SET estimate='' WHERE id='101'");c.commit();c.close()
+        self.assertEqual(fcc.query(self.db,'detail','K1AB')['licenses'][0]['available'],0)
+
     def test_watch_dates_do_not_remind_for_missing_estimates(self):
         c=self.connection()
         c.execute("UPDATE licenses SET estimate=''"); c.commit(); c.close()
@@ -189,7 +240,7 @@ class FCCTests(unittest.TestCase):
         self.assertEqual(result['same_address']['address']['street'],'123 MAIN ST')
         self.assertEqual(result['same_address']['address']['po_box'],'42')
         self.assertEqual(result['same_address']['address']['attention'],'APT 1')
-        self.assertEqual(len(result['applications']),4)
+        self.assertEqual(len(result['applications']),3)
         with zipfile.ZipFile(self.root/'empty.zip','w') as z: z.writestr('EN.dat','')
         with self.assertRaises(ValueError): fcc.import_addresses(self.db,self.root/'empty.zip')
         self.assertEqual(fcc.query(self.db,'detail','K1AB')['same_address']['address']['street'],'123 MAIN ST')

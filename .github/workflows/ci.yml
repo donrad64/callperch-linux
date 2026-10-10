@@ -29,4 +29,4 @@ jobs:
       - name: Backend tests
         run: python -m unittest discover -s tests -v
       - name: Qt interface tests
-        run: python linux/test_ui.py -v
+        run: python -m unittest discover -s linux -p 'test*.py' -v

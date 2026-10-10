@@ -3,7 +3,7 @@
 [![CI](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Qt desktop application for researching public FCC amateur-radio licenses, applications, callsign assignments, and estimated availability. Created by Arash Manafirad (KR4GOJ). This repository contains the Linux application and its shared Python FCC engine. The initial source release corresponds to Linux 1.2.3.
+A Qt desktop application for researching public FCC amateur-radio licenses, applications, callsign assignments, and estimated availability. Created by Arash Manafirad (KR4GOJ). This repository contains the Linux application and its shared Python FCC engine. The current source version is Linux 1.3.0.
 
 [Download installers](https://github.com/donrad64/callperch-support/releases/latest) · [Support](https://donrad64.github.io/callperch/) · [Privacy](https://donrad64.github.io/callperch/privacy.html)
 
@@ -16,6 +16,8 @@ A Qt desktop application for researching public FCC amateur-radio licenses, appl
 - Inspect exact public mailing-address matches; full addresses are hidden by default.
 - Expand FRN-linked assignment timelines, with smaller orange release-estimate notes.
 - Choose System, Light, or Dark appearance.
+- Compare ten callsigns with adjustable priorities, personal ratings, local audio, QSL/plate previews, saved comparisons and CSV export.
+- See snapshot-age reminders, previous-callsign records and clear loading/cancellation feedback.
 
 Assignment-history summaries describe patterns in the available public records. They do not establish intent, improper conduct, rule violations, former-holder eligibility, entitlement to a callsign, or an application outcome. Missing records, changed FRNs, and weekly snapshot timing affect results. Estimated availability is not an FCC decision. Verify relevant records directly with the FCC. CallPerch is independent and is not affiliated with the FCC.
 
@@ -32,10 +34,10 @@ Portable archives are also available. Keep the executable and `_internal` direct
 
 ## Run from source
 
-Python 3.10+ and a graphical Linux desktop are required. Ubuntu 24.04 is the build baseline. On Debian/Ubuntu:
+Python 3.10–3.13 and a graphical Linux desktop are required. Ubuntu 24.04 is the build baseline. On Debian/Ubuntu:
 
 ```sh
-sudo apt install python3-venv curl libnotify-bin xdg-utils libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
+sudo apt install python3-venv pulseaudio-utils espeak-ng curl libnotify-bin xdg-utils libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0
 git clone https://github.com/donrad64/callperch-linux.git
 cd callperch-linux
 python3 -m venv .venv
@@ -48,6 +50,8 @@ Choose **Sync FCC** or import both `l_amat.zip` and `a_amat.zip`. No FCC data is
 Both installed and source versions use `$XDG_DATA_HOME/callperch`, defaulting to `~/.local/share/callperch`. They share the database and settings. Close other instances before syncing. Older snapshots need Sync FCC for assignment-history identity fields.
 
 ## Troubleshooting: temporary folder space during FCC sync
+
+**Linux 1.3.0 fixes this issue:** sync downloads use a temporary folder beside the local FCC database and are cleaned up afterward. No TMPDIR override is needed. The 12 GiB check applies to available space on that filesystem, not the database's final size. The following workaround is retained for Linux 1.2.3.
 
 On some Raspberry Pi systems running Debian 13 (Trixie), **Sync FCC** may report less than 12 GiB available even when the SD card or NVMe drive has plenty of free space. Debian Trixie defaults `/tmp` to a memory-backed `tmpfs`, normally capped at half of RAM. A 4 GB Pi can therefore have a roughly 2 GB `/tmp`. See the [Debian release notes](https://www.debian.org/releases/trixie/release-notes/issues.html#the-temporary-files-directory-tmp-is-now-stored-in-a-tmpfs).
 
@@ -81,13 +85,13 @@ On a Raspberry Pi with a **64-bit** operating system, choose the **arm64** insta
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
-QT_QPA_PLATFORM=offscreen .venv/bin/python linux/test_ui.py -v
-APP_VERSION=1.2.3 ./scripts/build-linux.sh
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s linux -p 'test*.py' -v
+APP_VERSION=1.3.0 ./scripts/build-linux.sh
 ```
 
 Native packaging must run on Linux. The build produces a portable archive, checksum, and a `.deb` when `dpkg-deb` is available. Python and Qt are bundled. [Build and reminder instructions](docs/BUILDING.md) explain dependencies, packaging, and optional systemd reminders.
 
-CI tests pull requests and pushes with synthetic records. A manual workflow builds on Ubuntu x86-64 and ARM64, with read-only repository permissions; it uploads artifacts and does not publish releases automatically. Offscreen checks do not replace desktop testing.
+CI tests pull requests and pushes with synthetic records. A packaging workflow builds on Ubuntu x86-64 and ARM64, with read-only repository permissions; it uploads artifacts and does not publish releases automatically. Offscreen checks do not replace desktop testing.
 
 ## Privacy, contributions, and licensing
 
@@ -96,3 +100,9 @@ Searches, watchlists, preferences, and derived assignment summaries remain local
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for development and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Use synthetic data in tests and issue reports.
 
 CallPerch Linux code is released under the [MIT license](LICENSE). Dependencies retain their own licenses; see [THIRD_PARTY.md](THIRD_PARTY.md). Public FCC data is not included or licensed by this repository. Other CallPerch implementations and unpublished development history are outside this source release.
+
+## Spoken phonetics
+
+The built-in Linux voice uses local eSpeak and can sound synthetic. See [optional voice downloads](docs/VOICE-QUALITY.md) for a separate Piper listening option. Downloading a Piper voice does not change the app's Speak phonetics button.
+
+Comparison drafts, ratings and named comparisons remain local beside the existing database. Delete local data also removes comparisons; CSV files you export remain where you saved them.

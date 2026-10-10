@@ -12,7 +12,7 @@ class UITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.app=QApplication.instance() or QApplication([])
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.prior=os.environ.get('XDG_DATA_HOME');os.environ['XDG_DATA_HOME']=self.temp.name
+        self.temp=tempfile.TemporaryDirectory();self.data_env='LOCALAPPDATA' if sys.platform=='win32' else 'XDG_DATA_HOME';self.prior=os.environ.get(self.data_env);os.environ[self.data_env]=self.temp.name
         self.fixture=fixtures.FCCTests();self.fixture.setUp()
         # Ordinary UI tests must not launch Linux-only desktop notification helpers.
         save_settings({'watches':[], 'alerts':False})
@@ -20,13 +20,27 @@ class UITests(unittest.TestCase):
     def tearDown(self):
         if self.window.process is not None:self.window.process.kill();self.window.process.waitForFinished()
         if self.window.notify_process is not None:self.window.notify_process.kill();self.window.notify_process.waitForFinished()
-        self.window.timer.stop();self.window.deleteLater();self.app.processEvents();self.fixture.tearDown();self.temp.cleanup()
-        if self.prior is None:os.environ.pop('XDG_DATA_HOME',None)
-        else:os.environ['XDG_DATA_HOME']=self.prior
+        self.window.freshness_timer.stop();self.window.timer.stop();self.window.deleteLater();self.app.processEvents();self.fixture.tearDown();self.temp.cleanup()
+        if self.prior is None:os.environ.pop(self.data_env,None)
+        else:os.environ[self.data_env]=self.prior
     def wait(self,predicate):
         end=time.monotonic()+15
         while not predicate() and time.monotonic()<end:self.app.processEvents();time.sleep(.01)
         self.assertTrue(predicate(),self.window.status.text())
+    def test_comparison_integration_and_delete_local_data(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMessageBox
+        self.wait(lambda:self.window.process is None)
+        self.window.inspect('K1AB');self.wait(lambda:self.window.detail is not None)
+        self.assertTrue(self.window.add_compare_button.isEnabled())
+        self.window.add_to_comparison();self.assertIsNotNone(self.window.comparison_dialog)
+        self.window.comparisons.save()
+        self.window.comparison_dialog.reject();self.app.processEvents()
+        self.assertTrue(self.window.comparisons.path.exists())
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Yes):self.window.delete_local_data()
+        self.assertFalse(self.window.comparisons.path.exists())
+        self.assertEqual(self.window.comparisons.workspace['candidates'],[])
+
     def test_live_engine_query_and_address_render(self):
         self.wait(lambda:self.window.process is None and 'licenses' in self.window.status.text())
         self.window.term.setText('K1AB');self.window.refresh()
@@ -70,6 +84,32 @@ class UITests(unittest.TestCase):
         for state,expected in [('needs_sync','Sync FCC'),('identity_unavailable','cannot be assessed'),('ready','No qualifying pattern')]:
             self.window.detail={'licenses':[],'applications':[],'history':[],'switching':{'state':state,'holders':[]}}
             self.window.render_detail();self.assertIn(expected,self.window.browser.toPlainText())
+
+    def test_sync_stages_beside_database_and_cleans_downloads(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMessageBox
+        import callperch
+        self.wait(lambda:self.window.process is None)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Yes), patch.object(callperch.fcc,'check_disk') as check, patch.object(callperch.tempfile,'gettempdir',side_effect=AssertionError('Sync must not use default temp storage')), patch.object(self.window,'download_archive') as download:
+            self.window.sync()
+        staging=Path(self.window.staging.name)
+        self.assertEqual(staging.parent,callperch.data_directory())
+        check.assert_called_once_with(callperch.data_directory()/'fcc.sqlite')
+        download.assert_called_once_with(0)
+        self.assertTrue(staging.is_dir())
+        self.window.cleanup_staging();self.assertFalse(staging.exists())
+        self.window.syncing=False;self.window.finish_sync_progress('Test complete');self.window.sync_dialog.reject()
+
+    def test_sync_storage_error_reports_actual_path(self):
+        from unittest.mock import patch
+        from PySide6.QtWidgets import QMessageBox
+        import callperch
+        self.wait(lambda:self.window.process is None)
+        with patch.object(QMessageBox,'question',return_value=QMessageBox.StandardButton.Yes), patch.object(QMessageBox,'warning') as warning, patch.object(callperch.fcc,'check_disk',side_effect=ValueError('Not enough space')):
+            self.window.sync()
+        self.assertIn(str(callperch.data_directory()),self.window.status.text())
+        self.assertFalse(self.window.syncing);self.assertIsNone(self.window.staging)
+        warning.assert_called_once()
 
     def test_sync_dialog_import_success_and_done(self):
         from unittest.mock import patch
@@ -176,7 +216,24 @@ class UITests(unittest.TestCase):
         self.wait(lambda:self.window.process is None and bool(self.window.rows))
         self.window.table.cellWidget(0,0).click()
         self.assertNotIn('K1AB',read_settings()['watches'])
+        self.assertEqual(self.window.rows[0]['call'],'K1AB')
+        self.assertEqual(self.window.table.cellWidget(0,0).text(),'☆')
+        self.window.table.cellWidget(0,0).click()
+        self.assertIn('K1AB',read_settings()['watches'])
+        self.assertEqual(self.window.table.cellWidget(0,0).text(),'★')
+        self.window.table.selectRow(0)
+        self.wait(lambda:self.window.process is None and self.window.detail is not None)
+        self.assertIn('K1AB',read_settings()['watches'])
+        self.window.watch_button.click()
+        self.assertNotIn('K1AB',read_settings()['watches'])
+        self.assertEqual(self.window.rows[0]['call'],'K1AB')
+        self.assertEqual(self.window.selected,'K1AB')
+        self.assertEqual(self.window.table.cellWidget(0,0).text(),'☆')
+        self.assertEqual(self.window.watch_button.text(),'☆')
+        self.window.search.click()
+        self.wait(lambda:self.window.process is None)
         self.assertEqual(self.window.rows,[])
+        self.assertEqual(self.window.table.rowCount(),0)
 
     def test_morse_notation_and_saved_appearance(self):
         from PySide6.QtCore import Qt
@@ -256,6 +313,71 @@ class UITests(unittest.TestCase):
         self.assertEqual(due_reminders(dates,dt.datetime(2026,10,4,8),[]),[])
         self.assertEqual(due_reminders(dates,dt.datetime(2026,10,4,9),[]),dates)
         self.assertEqual(due_reminders(dates,dt.datetime(2026,10,4,10),['K1AB|2026-10-05']),[])
+    def test_windows_frozen_engine_uses_console_helper(self):
+        from unittest.mock import patch
+        import callperch
+        with patch.object(sys,'platform','win32'),patch.object(sys,'frozen',True,create=True),patch.object(sys,'executable',str(Path(self.temp.name)/'CallPerch.exe')):
+            self.assertEqual(callperch.engine_command(['query','stats']),[str(Path(self.temp.name)/'CallPerchEngine.exe'),'--engine','query','stats'])
+
+    def test_windows_reminders_batch_and_deduplicate(self):
+        from unittest.mock import patch,Mock
+        import callperch
+        self.wait(lambda:self.window.process is None)
+        self.window.settings.update(alerts=True,watches=['K1AB','N1AB'])
+        self.window.tray=Mock()
+        tomorrow=(dt.date(2026,10,5)).isoformat()
+        rows=[{'call':call,'estimate':tomorrow} for call in ['K1AB','N1AB']]
+        clock=Mock();clock.now.return_value=dt.datetime(2026,10,4,10).astimezone()
+        # Prevent reminder tests from writing to the actual Windows data folder.
+        with patch.object(sys,'platform','win32'),patch.dict(os.environ,{'LOCALAPPDATA':self.temp.name}),patch.object(callperch.dt,'datetime',clock),patch.object(callperch.QSystemTrayIcon,'isSystemTrayAvailable',return_value=True),patch.object(callperch.QSystemTrayIcon,'supportsMessages',return_value=True),patch.object(self.window,'run',side_effect=lambda args,callback:callback(rows)):
+            self.window.check_reminders();self.window.check_reminders()
+        self.window.tray.showMessage.assert_called_once()
+        self.assertIn('K1AB, N1AB',self.window.tray.showMessage.call_args.args[1])
+        self.window.tray=None
+
+    def test_snapshot_reminder_dismissal_and_version_refresh(self):
+        self.wait(lambda:self.window.process is None)
+        stamp=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=31)).isoformat()
+        self.window.snapshot_timestamp=stamp;self.window.update_freshness()
+        self.assertFalse(self.window.freshness_banner.isHidden())
+        self.assertIn('Sync before relying',self.window.freshness_text.text())
+        self.window.dismiss_freshness();self.assertTrue(self.window.freshness_banner.isHidden())
+        self.assertEqual(read_settings()['snapshot_dismissed_version'],stamp)
+        self.window.snapshot_timestamp=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=8)).isoformat()
+        self.window.update_freshness();self.assertFalse(self.window.freshness_banner.isHidden())
+        self.window.snapshot_timestamp=dt.datetime.now(dt.timezone.utc).isoformat()
+        self.window.update_freshness();self.assertTrue(self.window.freshness_banner.isHidden())
+
+    def test_previous_call_link_preserves_license_identity(self):
+        from unittest.mock import patch
+        from PySide6.QtCore import QUrl
+        self.wait(lambda:self.window.process is None)
+        with patch.object(self.window,'inspect') as inspect:
+            self.window.open_link(QUrl('license:201:K1AB'))
+            inspect.assert_called_once_with('K1AB','201')
+        with patch.object(self.window,'run') as run:
+            self.window.inspect('K1AB','201')
+            self.assertEqual(run.call_args.args[0],['query','detail','--term','K1AB','--license-id','201'])
+
+    def test_loading_overlay_survives_chained_query_and_cancellation(self):
+        from unittest.mock import patch
+        self.wait(lambda:self.window.process is None)
+        self.assertTrue(self.window.loading.isHidden())
+        self.window.show();self.app.processEvents();self.wait(lambda:self.window.process is None)
+        def chain(_):
+            with patch('callperch.engine_command',return_value=[sys.executable,'-c','import time;time.sleep(30)']):
+                self.window.run(['query','upcoming'],lambda _:None)
+        with patch('callperch.engine_command',return_value=[sys.executable,'-c','print("[]")']):
+            self.window.run(['query','available'],chain)
+            self.assertFalse(self.window.loading.isHidden())
+            self.assertEqual(self.window.loading.message,'Loading available estimates…')
+            self.wait(lambda:self.window.loading.message=='Loading coming callsigns…')
+            self.assertFalse(self.window.loading.isHidden())
+            self.assertTrue(self.window.loading.timer.isActive())
+            self.assertIs(self.window.cancel_button.parent(),self.window.loading)
+            self.window.cancel_button.click();self.wait(lambda:self.window.process is None)
+        self.assertTrue(self.window.loading.isHidden());self.assertFalse(self.window.loading.timer.isActive())
+
     def test_preferences_validation_and_atomic_save(self):
         path=Path(self.temp.name)/'settings.json';path.write_text('{broken')
         self.assertEqual(read_settings(path)['watches'],[])

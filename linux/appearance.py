@@ -18,6 +18,11 @@ def stylesheet(dark):
     if dark:
         style=re.sub(r'#[0-9a-f]{6}',lambda match:DARK_COLORS.get(match[0],match[0]),style)
         style=style.replace('background: white','background: #202c3c')
+    style += """
+        QPushButton#coffee { background: #f6dfaf; color: #593b1e; border: 1px solid #dfbb7d; border-radius: 10px; padding: 11px 12px; font-weight: 600; text-align: left; }
+        QPushButton#coffee:hover { background: #ffe9bc; border-color: #cba365; }
+        QPushButton#coffee:pressed { background: #edcf95; }
+    """
     return style
 
 def palette(dark):

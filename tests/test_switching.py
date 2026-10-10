@@ -45,10 +45,10 @@ class SwitchingTests(unittest.TestCase):
         import tempfile,zipfile
         with tempfile.TemporaryDirectory() as d:
             with zipfile.ZipFile(d+'/l.zip','w') as z:
-                z.writestr('EN.dat',row('EN',30,{1:'1',5:'L',22:'0012345678',23:'I'}))
+                z.writestr('EN.dat',row('EN',30,{1:'1',5:'L',22:'0015370455',23:'I'}))
                 z.writestr('AM.dat',row('AM',18,{1:'1',14:'FORMER',15:'N4BD',9:'Y'}))
             with zipfile.ZipFile(d+'/l.zip') as z: fcc.import_switch_identity(self.c,z,'L')
-        self.assertEqual(self.c.execute('SELECT frn FROM holder_identity').fetchone()[0],'0012345678')
+        self.assertEqual(self.c.execute('SELECT frn FROM holder_identity').fetchone()[0],'0015370455')
         self.assertEqual(tuple(self.c.execute('SELECT relationship,previous_call,trustee FROM amateur_changes').fetchone()),('FORMER','N4BD','Y'))
     def test_clubs_and_trustees_excluded(self):
         self.cycle();self.c.execute("UPDATE holder_identity SET applicant_type='C'")
