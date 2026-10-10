@@ -29,7 +29,10 @@ jobs:
           python -m unittest discover -s tests -v
           python linux/test_ui.py -v
       - name: Package
-        run: ./scripts/build-linux.sh
+        run: |
+          ./scripts/build-linux.sh
+          ./scripts/build-deb.sh
+          ./scripts/build-appimage.sh
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: CallPerch-${{ matrix.runner }}
@@ -39,3 +42,4 @@ jobs:
             dist/linux/*.tar.gz
             dist/linux/*.sha256
             dist/linux/*.deb
+            dist/linux/*.AppImage

@@ -26,9 +26,17 @@ Run on Linux; PyInstaller cannot produce Linux binaries on macOS. The intended b
 
 ```sh
 ./scripts/build-linux.sh
+./scripts/build-deb.sh
 ```
 
-Outputs: a portable application folder, `.tar.gz`, checksum, and `.deb` when `dpkg-deb` is available. Python and Qt are included. curl and desktop system libraries are installed dependencies. Do not move the executable away from its `_internal` directory. No FCC snapshot is included in these Linux binary packages by default.
+Alternatively, the AppImage can be built separately once the PyInstaller bundle is present:
+
+```sh
+./scripts/build-linux.sh
+./scripts/build-appimage.sh
+```
+
+Outputs: a portable application folder, `.tar.gz`, AppImage, checksums, and `.deb` when `dpkg-deb` is available. Python and Qt are included. curl and desktop system libraries are installed dependencies. Do not move the executable away from its `_internal` directory. No FCC snapshot is included in these Linux binary packages by default.
 
 The manual `release-candidates` GitHub workflow (or the Linux-only `linux-candidates` workflow) builds on separate Ubuntu x86-64 and ARM64 runners, runs synthetic-data UI tests, and verifies the frozen GUI can start offscreen. Native build workflows run on GitHub-hosted Ubuntu runners. Real desktop/notification tests are still required on each architecture. Debian installation and Wayland/X11 behavior have not yet been verified here.
 

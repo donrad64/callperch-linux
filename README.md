@@ -28,7 +28,7 @@ sudo apt install ./CallPerch-1.2.3-amd64.deb
 callperch
 ```
 
-Portable archives are also available. Keep the executable and `_internal` directory together. Verify downloads against the release's `SHA256SUMS.txt`.
+Portable archives and AppImages are also available. Make AppImages executable (`chmod +x CallPerch-*.AppImage`) to run them directly. Keep portable archives' executable and `_internal` directory together. Verify downloads against the release's checksum files.
 
 ## Run from source
 
@@ -85,7 +85,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python linux/test_ui.py -v
 APP_VERSION=1.2.3 ./scripts/build-linux.sh
 ```
 
-Native packaging must run on Linux. The build produces a portable archive, checksum, and a `.deb` when `dpkg-deb` is available. Python and Qt are bundled. [Build and reminder instructions](docs/BUILDING.md) explain dependencies, packaging, and optional systemd reminders.
+Native packaging must run on Linux. The build produces a portable archive, AppImage, checksums, and a `.deb` when `dpkg-deb` is available. Python and Qt are bundled. [Build and reminder instructions](docs/BUILDING.md) explain dependencies, packaging, and optional systemd reminders.
 
 CI tests pull requests and pushes with synthetic records. A manual workflow builds on Ubuntu x86-64 and ARM64, with read-only repository permissions; it uploads artifacts and does not publish releases automatically. Offscreen checks do not replace desktop testing.
 
