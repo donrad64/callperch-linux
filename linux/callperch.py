@@ -107,10 +107,9 @@ class Window(QMainWindow):
         self.appearance.currentIndexChanged.connect(self.appearance_changed)
         credit=QLabel('Created with love by <b>KR4GOJ</b>');credit.setObjectName('muted');side.addWidget(credit)
         self.coffee=coffee=QPushButton('Buy me a coffee  ↗');coffee.setObjectName('coffee');coffee.setIcon(coffee_icon());coffee.setToolTip('Support CallPerch on Buy Me a Coffee');coffee.clicked.connect(lambda:QDesktopServices.openUrl(QUrl('https://buymeacoffee.com/kr4goj')));side.addWidget(coffee)
-        self.acknowledgments_link=QLabel();self.privacy_link=QLabel()
-        self.acknowledgments_link.linkActivated.connect(lambda _:self.show_acknowledgments())
+        self.privacy_link=QLabel()
         self.privacy_link.linkActivated.connect(lambda _:QDesktopServices.openUrl(QUrl.fromLocalFile(str(ROOT/'docs/privacy.html'))))
-        for link,name in [(self.acknowledgments_link,'Acknowledgments'),(self.privacy_link,'Privacy policy')]:
+        for link,name in [(self.privacy_link,'Privacy policy')]:
             link.setAccessibleName(name);link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction);link.setFocusPolicy(Qt.FocusPolicy.StrongFocus);link.setStyleSheet('font-size: 11px;');side.addWidget(link)
         workspace=QWidget();layout=QVBoxLayout(workspace);layout.setContentsMargins(24,24,24,16);layout.setSpacing(14);shell.addWidget(workspace,1)
         self.heading=QLabel();self.heading.setObjectName('heading');header=QHBoxLayout();header.addWidget(self.heading,1);header.addLayout(appearance_row);layout.addLayout(header)
@@ -154,13 +153,6 @@ class Window(QMainWindow):
         self.freshness_timer=QTimer(self);self.freshness_timer.timeout.connect(self.update_freshness);self.freshness_timer.start(60000)
         QApplication.instance().applicationStateChanged.connect(self.update_freshness)
         QTimer.singleShot(0,self.load_stats)
-
-    def show_acknowledgments(self):
-        dialog=QDialog(self);dialog.setWindowTitle('Acknowledgments');dialog.resize(520,420)
-        layout=QVBoxLayout(dialog)
-        text=QLabel('Thank you to the operators whose ideas, feedback, and testing help improve CallPerch.<br><br><b>Fin (NC4FG)</b><br>For feedback that helped shape the callsign comparison workspace.<br><br><b>Ben (KO4B)</b><br>For feedback that helped shape the repeated callsign switching feature.<br><br><b>Michael (KZ4LY)</b><br>For his help with Linux support, testing, and troubleshooting.<br><br><b>Anthony A. Luscre (K8ZT)</b><br>For “Choosing Your Ideal Vanity Call Sign,” which inspired the callsign comparison criteria.<br><a href="https://www.k8zt.com/rules-orgs/vanity-callsign">Read Anthony’s article</a>')
-        text.setWordWrap(True);text.setOpenExternalLinks(True);layout.addWidget(text)
-        done=QPushButton('Done');done.clicked.connect(dialog.accept);layout.addWidget(done);dialog.exec()
 
     def update_freshness(self,*_):
         info=snapshot_freshness(self.snapshot_timestamp,dt.datetime.now().astimezone(),self.settings.get('snapshot_dismissed_version',''),self.settings.get('snapshot_dismissed_day',''))
@@ -206,7 +198,7 @@ class Window(QMainWindow):
             effect=QGraphicsColorizeEffect(self.logo);effect.setColor(QColor('#a9cfff'));effect.setStrength(.85);self.logo.setGraphicsEffect(effect)
         else:self.logo.setGraphicsEffect(None)
         link='#8bc1ff' if self.dark else '#2166b5'
-        for widget,title,target in [(self.acknowledgments_link,'Acknowledgments','acknowledgments'),(self.privacy_link,'Privacy policy','privacy'),(self.uls_link,'FCC ULS login ↗',ULS)]:
+        for widget,title,target in [(self.privacy_link,'Privacy policy','privacy'),(self.uls_link,'FCC ULS login ↗',ULS)]:
             widget.setText(f'<a style="color:{link};text-decoration:none;" href="{target}">{title}</a>')
         self.browser.document().setDefaultStyleSheet(f'a {{ color: {link}; }} .morse {{ font-family: monospace; font-size: 18px; }}')
         if self.detail:self.render_detail()
