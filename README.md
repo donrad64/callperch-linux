@@ -3,7 +3,7 @@
 [![CI](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/donrad64/callperch-linux/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Qt desktop application for researching public FCC amateur-radio licenses, applications, callsign assignments, and estimated availability. Created by Arash Manafirad (KR4GOJ). This repository contains the Linux application and its shared Python FCC engine. The current source version is Linux 1.3.0.
+A Qt desktop application for researching public FCC amateur-radio licenses, applications, callsign assignments, and estimated availability. Created by Arash Manafirad (KR4GOJ). This repository contains the Linux application and its shared Python FCC engine. The current source version is Linux 1.3.1.
 
 [Download installers](https://github.com/donrad64/callperch-support/releases/latest) · [Support](https://donrad64.github.io/callperch/) · [Privacy](https://donrad64.github.io/callperch/privacy.html)
 
@@ -51,7 +51,7 @@ Both installed and source versions use `$XDG_DATA_HOME/callperch`, defaulting to
 
 ## Troubleshooting: temporary folder space during FCC sync
 
-**Linux 1.3.0 fixes this issue:** sync downloads use a temporary folder beside the local FCC database and are cleaned up afterward. No TMPDIR override is needed. The 12 GiB check applies to available space on that filesystem, not the database's final size. The following workaround is retained for Linux 1.2.3.
+**Linux 1.3.1 fixes this issue:** sync downloads use a temporary folder beside the local FCC database and are cleaned up afterward. No TMPDIR override is needed. The 12 GiB check applies to available space on that filesystem, not the database's final size. The following workaround is retained for Linux 1.2.3.
 
 On some Raspberry Pi systems running Debian 13 (Trixie), **Sync FCC** may report less than 12 GiB available even when the SD card or NVMe drive has plenty of free space. Debian Trixie defaults `/tmp` to a memory-backed `tmpfs`, normally capped at half of RAM. A 4 GB Pi can therefore have a roughly 2 GB `/tmp`. See the [Debian release notes](https://www.debian.org/releases/trixie/release-notes/issues.html#the-temporary-files-directory-tmp-is-now-stored-in-a-tmpfs).
 
@@ -86,7 +86,7 @@ On a Raspberry Pi with a **64-bit** operating system, choose the **arm64** insta
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s linux -p 'test*.py' -v
-APP_VERSION=1.3.0 ./scripts/build-linux.sh
+APP_VERSION=1.3.1 ./scripts/build-linux.sh
 ```
 
 Native packaging must run on Linux. The build produces a portable archive, checksum, and a `.deb` when `dpkg-deb` is available. Python and Qt are bundled. [Build and reminder instructions](docs/BUILDING.md) explain dependencies, packaging, and optional systemd reminders.
