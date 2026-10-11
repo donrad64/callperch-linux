@@ -81,7 +81,7 @@ Run all Qt tests with `QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest di
 
 ## Latest local test, October 10, 2026
 
-The test package includes snapshot-age reminders, clearer expiration/cancellation labels, previous-callsign navigation preserving the selected license record, loading/cancellation feedback, improved comparison previews, and acknowledgments from the latest Mac app. FCC sync stages downloads inside the local data directory rather than `/tmp`; storage errors show the folder, and downloaded ZIPs are removed after the operation. The 12 GiB free-space threshold is unchanged. See [local testing instructions](TESTING.md). Native packages are built separately for x86-64 and ARM64.
+The test package includes snapshot-age reminders, clearer expiration/cancellation labels, previous-callsign navigation preserving the selected license record, loading/cancellation feedback, improved comparison previews from the latest Mac app. FCC sync stages downloads inside the local data directory rather than `/tmp`; storage errors show the folder, and downloaded ZIPs are removed after the operation. The 12 GiB free-space threshold is unchanged. See [local testing instructions](TESTING.md). Native packages are built separately for x86-64 and ARM64.
 
 
 ## Spoken voice quality
