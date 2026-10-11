@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ "$(uname -s)" != Linux ]; then echo 'Native Linux packages must be built on Linux (use the release-candidates GitHub workflow).' >&2; exit 1; fi
 case "$(uname -m)" in x86_64) ARCH=x86_64; DEB_ARCH=amd64;; aarch64|arm64) ARCH=aarch64; DEB_ARCH=arm64;; *) echo 'Supported Linux architectures: x86_64 and aarch64' >&2; exit 1;; esac
-VERSION=${APP_VERSION:-1.3.0}
+VERSION=${APP_VERSION:-1.3.1}
 export PYINSTALLER_CONFIG_DIR="$PWD/.build/pyinstaller-cache-$ARCH"
 python3 -m venv .build/linux-venv
 .build/linux-venv/bin/python -m pip install -r linux/requirements-build.txt
